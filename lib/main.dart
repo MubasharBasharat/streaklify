@@ -12,7 +12,7 @@ import 'routes/app_routes.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Set orientation
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -22,9 +22,10 @@ void main() async {
   // Init Hive
   await Hive.initFlutter();
   Hive.registerAdapter(StreakModelAdapter());
-  
+
   // Init Services
   await Get.putAsync(() => StorageService().init());
+  // await Get.putAsync(() => NotificationService().init());
   await Get.putAsync(() => NotificationService().init());
 
   runApp(const StreaklifyApp());
