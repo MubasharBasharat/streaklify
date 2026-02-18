@@ -1,51 +1,78 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:get/get.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService extends GetxService {
   static NotificationService get to => Get.find();
-  
-  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
 
   Future<NotificationService> init() async {
-    tz.initializeTimeZones();
-    // Fixed: inference
-    final timeZoneName = await FlutterTimezone.getLocalTimezone();
-    // Fixed: Use toString() just in case it returns an object
-    tz.setLocalLocation(tz.getLocation(timeZoneName.toString()));
+    const logTag = "[NotificationService]";
 
-    const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    tz_data.initializeTimeZones();
+    debugPrint("$logTag 🕒 Timezone initialized: ${tz.local.name}");
 
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
+
+    const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
 
-    const InitializationSettings initSettings = InitializationSettings(
+    const initializationSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
     );
 
-    // Fixed: named argument 'settings' (or initializationSettings based on typical API, but error said 'settings')
-    // Error: "The named parameter 'settings' is required"
-    await _notificationsPlugin.initialize(settings: initSettings);
-    
-    // Request permission for Android 13+
+    // ✅ FIXED (named parameter required)
+    await _plugin.initialize(
+      settings: initializationSettings,
+      onDidReceiveNotificationResponse: _onNotificationTap,
+    );
+
     await _requestPermissions();
+
+    debugPrint("$logTag ✅ Initialized successfully");
 
     return this;
   }
 
   Future<void> _requestPermissions() async {
-    if (await Permission.notification.isDenied) {
-      await Permission.notification.request();
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
+
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
+  }
+
+  void _onNotificationTap(NotificationResponse response) {
+    if (response.payload == null) return;
+
+    try {
+      final data = jsonDecode(response.payload!);
+      debugPrint("[NotificationService] 🔔 Tap → $data");
+    } catch (_) {
+      debugPrint("[NotificationService] ⚠️ Invalid payload");
     }
   }
+
+  // ============================================================
+  // ✅ DAILY REPEATING NOTIFICATION
+  // ============================================================
 
   Future<void> scheduleDailyNotification({
     required int id,
@@ -53,47 +80,140 @@ class NotificationService extends GetxService {
     required String body,
     required int hour,
     required int minute,
+    String? payload,
   }) async {
-    await _notificationsPlugin.zonedSchedule(
+    await cancelNotification(id);
+
+    final scheduledDate = _nextInstanceOfTime(hour, minute);
+
+    const androidDetails = AndroidNotificationDetails(
+      'streak_reminders',
+      'Streak Reminders',
+      channelDescription: 'Daily reminders for streak tasks',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    await _plugin.zonedSchedule(
       id: id,
       title: title,
       body: body,
-      scheduledDate: _nextInstanceOfTime(hour, minute),
+      scheduledDate: scheduledDate,
+      notificationDetails: const NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: payload,
+    );
+
+    debugPrint(
+      "[NotificationService] 📅 Scheduled DAILY at $hour:$minute (ID: $id)",
+    );
+  }
+
+  tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
+    final now = tz.TZDateTime.now(tz.local);
+
+    tz.TZDateTime scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
+
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    return scheduledDate;
+  }
+
+  // ============================================================
+  // ✅ IMMEDIATE NOTIFICATION
+  // ============================================================
+
+  Future<void> showNow({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'general_channel',
+      'General Notifications',
+      channelDescription: 'General notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    // ✅ FIXED (named parameters required)
+    await _plugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      ),
+      payload: payload,
+    );
+  }
+
+  Future<void> scheduleTestNotification() async {
+    final now = tz.TZDateTime.now(tz.local);
+
+    final scheduledTime = now.add(const Duration(seconds: 10));
+
+    await _plugin.zonedSchedule(
+      id: 999,
+      title: "Scheduled Test",
+      body: "This should appear in 10 seconds ⏰",
+      scheduledDate: scheduledTime,
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
-          'streak_reminders',
-          'Streak Reminders',
-          channelDescription: 'Daily reminders for your streaks',
+          'general_channel',
+          'General Notifications',
+          channelDescription: 'General notifications',
           importance: Importance.max,
           priority: Priority.high,
         ),
         iOS: DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      // Fixed: Removed uiLocalNotificationDateInterpretation if it causes issues or try ignoring it for now if optional
-      // But usually it's required.
-      // Error said: "The named parameter 'uiLocalNotificationDateInterpretation' isn't defined"
-      // This suggests it might be removed or renamed.
-      // Trying without it.
-      matchDateTimeComponents: DateTimeComponents.time,
+
+      matchDateTimeComponents: null,
     );
   }
 
-  tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
-    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduledDate =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-    return scheduledDate;
-  }
+  // ============================================================
+  // ✅ CANCEL METHODS
+  // ============================================================
 
   Future<void> cancelNotification(int id) async {
-    await _notificationsPlugin.cancel(id: id);
+    // ✅ FIXED (named parameter required)
+    await _plugin.cancel(id: id);
+    debugPrint("[NotificationService] ❌ Canceled ID: $id");
   }
 
   Future<void> cancelAllNotifications() async {
-    await _notificationsPlugin.cancelAll();
+    await _plugin.cancelAll();
+    debugPrint("[NotificationService] 🧹 All notifications canceled");
   }
 }

@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:streaklify/core/services/notification_service.dart';
 
-import 'core/services/notification_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/models/streak_model.dart';
@@ -13,20 +13,19 @@ import 'routes/app_routes.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set orientation
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Init Hive
+  // ✅ Initialize Hive FIRST
   await Hive.initFlutter();
   Hive.registerAdapter(StreakModelAdapter());
 
-  // Init Services
+  // ✅ Initialize Services AFTER Hive
   await Get.putAsync(() => StorageService().init());
-  // await Get.putAsync(() => NotificationService().init());
   await Get.putAsync(() => NotificationService().init());
+  NotificationService.to.scheduleTestNotification();
 
   runApp(const StreaklifyApp());
 }

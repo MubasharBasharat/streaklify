@@ -1,21 +1,23 @@
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-
+import 'package:streaklify/data/models/streak_model.dart';
 
 class StorageService extends GetxService {
   static StorageService get to => Get.find();
-  
+
   late final Box _settingsBox;
+  late final Box<StreakModel> streakBox;
 
   Future<StorageService> init() async {
     // Hive init logic actually happens in main.dart or better here
     // But we need to await getApplicationDocumentsDirectory
     // For Hive Flutter helper:
     await Hive.initFlutter();
-    
+
     // We will register adapters later in main, but boxes can be opened here
     _settingsBox = await Hive.openBox('settings');
-    
+    streakBox = await Hive.openBox<StreakModel>('streaks');
+
     return this;
   }
 
@@ -26,7 +28,7 @@ class StorageService extends GetxService {
   Future<void> write(String key, dynamic value) async {
     await _settingsBox.put(key, value);
   }
-  
+
   Future<void> clear() async {
     await _settingsBox.clear();
   }
