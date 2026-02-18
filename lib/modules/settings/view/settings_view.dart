@@ -13,19 +13,22 @@ class SettingsView extends GetView<SettingsController> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.settings),
+        automaticallyImplyLeading: false,
       ),
       body: ListView(
         padding: EdgeInsets.all(16.w),
         children: [
           _buildSectionHeader('Preferences'),
-          Obx(() => SwitchListTile(
-            title: const Text('Enable Notifications'),
-            subtitle: const Text('Receive daily reminders for your streaks'),
-            value: controller.areNotificationsEnabled.value,
-            onChanged: controller.toggleNotifications,
-            activeColor: AppColors.primary,
-            contentPadding: EdgeInsets.zero,
-          )),
+          Obx(
+            () => SwitchListTile(
+              title: const Text('Enable Notifications'),
+              subtitle: const Text('Receive daily reminders for your streaks'),
+              value: controller.areNotificationsEnabled.value,
+              onChanged: controller.toggleNotifications,
+              activeColor: AppColors.primary,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
           const Divider(),
           _buildSectionHeader('About'),
           ListTile(
@@ -40,20 +43,7 @@ class SettingsView extends GetView<SettingsController> {
             contentPadding: EdgeInsets.zero,
             onTap: () => controller.openUrl('mailto:support@streaklify.com'),
           ),
-          ListTile(
-            title: const Text('Rate App'),
-            trailing: const Icon(Icons.star, color: Colors.amber),
-            contentPadding: EdgeInsets.zero,
-            onTap: controller.rateApp,
-          ),
-          const Divider(),
-          _buildSectionHeader('Danger Zone'),
-          ListTile(
-            title: const Text('Clear All Data', style: TextStyle(color: AppColors.error)),
-            leading: const Icon(Icons.delete_forever, color: AppColors.error),
-            contentPadding: EdgeInsets.zero,
-            onTap: controller.clearAllData,
-          ),
+
           SizedBox(height: 20.h),
           Center(
             child: Text(

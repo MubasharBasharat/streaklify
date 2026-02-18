@@ -21,6 +21,10 @@ class ProgressController extends GetxController {
     _loadStats();
   }
 
+  void refreshStats() {
+    _loadStats();
+  }
+
   Future<void> _loadStats() async {
     final streaks = await _repository.getAllStreaks();
     allStreaks.assignAll(streaks);

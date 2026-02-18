@@ -25,7 +25,6 @@ void main() async {
   // ✅ Initialize Services AFTER Hive
   await Get.putAsync(() => StorageService().init());
   await Get.putAsync(() => NotificationService().init());
-  NotificationService.to.scheduleTestNotification();
 
   runApp(const StreaklifyApp());
 }

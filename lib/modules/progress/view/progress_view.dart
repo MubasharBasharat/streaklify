@@ -13,6 +13,7 @@ class ProgressView extends GetView<ProgressController> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.progress),
+        automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16.w),

@@ -5,7 +5,6 @@ import 'package:streaklify/data/models/streak_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/storage_service.dart';
-import '../../../routes/app_routes.dart';
 
 class SettingsController extends GetxController {
   final StorageService _storage = StorageService.to;
@@ -22,10 +21,34 @@ class SettingsController extends GetxController {
   }
 
   void toggleNotifications(bool value) async {
-    areNotificationsEnabled.value = value;
-    await _storage.write('notifications_enabled', value);
-
     if (!value) {
+      // Show confirmation dialog before disabling
+      final confirmed = await Get.dialog<bool>(
+        AlertDialog(
+          title: const Text('Disable Notifications?'),
+          content: const Text(
+            'This will cancel all scheduled notifications for your streaks. Are you sure?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Get.back(result: true),
+              child: const Text(
+                'Disable',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return; // User cancelled, keep notifications on
+
+      areNotificationsEnabled.value = false;
+      await _storage.write('notifications_enabled', false);
       await NotificationService.to.cancelAllNotifications();
 
       Get.snackbar(
@@ -33,7 +56,10 @@ class SettingsController extends GetxController {
         'All reminders have been turned off.',
       );
     } else {
-      // 🔄 Re-schedule all active streak reminders
+      areNotificationsEnabled.value = true;
+      await _storage.write('notifications_enabled', true);
+
+      // Re-schedule all active streak reminders
       final streakBox = Hive.box<StreakModel>('streaks');
       final streaks = streakBox.values.toList();
 
@@ -62,32 +88,6 @@ class SettingsController extends GetxController {
     }
   }
 
-  Future<void> clearAllData() async {
-    Get.defaultDialog(
-      title: 'Clear All Data',
-      middleText:
-          'Are you sure you want to delete all streaks and reset the app? This cannot be undone.',
-      textConfirm: 'Delete All',
-      textCancel: 'Cancel',
-      confirmTextColor: Colors.white,
-      buttonColor: Colors.red,
-      onConfirm: () async {
-        // Clear Hive boxes
-        await _storage.clear(); // Clears settings
-        // We also need to clear streaks box.
-        // Ideally Repository should expose a clear method, or we open box and clear.
-        // For simplicity, we just clear settings here and maybe user clears app data.
-
-        // Let's assume we want to really clear streaks:
-        // final streaksBox = await Hive.openBox<StreakModel>('streaks');
-        // await streaksBox.clear();
-
-        Get.back();
-        Get.offAllNamed(AppRoutes.splash);
-      },
-    );
-  }
-
   void openUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -98,7 +98,6 @@ class SettingsController extends GetxController {
   }
 
   void rateApp() {
-    // Platform specific store linking unlikely for this demo
     Get.snackbar('Rate App', 'Thanks for the rating! (Simulation)');
   }
 }

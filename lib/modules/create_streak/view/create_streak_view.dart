@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../modules/main/main_controller.dart';
 import '../controller/create_streak_controller.dart';
 
 class CreateStreakView extends GetView<CreateStreakController> {
@@ -13,7 +14,11 @@ class CreateStreakView extends GetView<CreateStreakController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.createStreak),
+        title: Obx(() => Text(
+              controller.isEditMode.value
+                  ? 'Edit Streak'
+                  : AppStrings.createStreak,
+            )),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Get.back(),
@@ -69,7 +74,8 @@ class CreateStreakView extends GetView<CreateStreakController> {
                   final picked = await showDatePicker(
                     context: context,
                     initialDate: controller.startDate.value,
-                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                    firstDate:
+                        DateTime.now().subtract(const Duration(days: 365)),
                     lastDate: DateTime.now().add(const Duration(days: 365)),
                     builder: (context, child) {
                       return Theme(
@@ -90,7 +96,8 @@ class CreateStreakView extends GetView<CreateStreakController> {
                   }
                 },
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12.r),
@@ -100,7 +107,8 @@ class CreateStreakView extends GetView<CreateStreakController> {
                       const Icon(Icons.calendar_month, color: Colors.white70),
                       SizedBox(width: 12.w),
                       Obx(() => Text(
-                            DateFormat.yMMMd().format(controller.startDate.value),
+                            DateFormat.yMMMd()
+                                .format(controller.startDate.value),
                             style: TextStyle(fontSize: 16.sp),
                           )),
                     ],
@@ -134,7 +142,8 @@ class CreateStreakView extends GetView<CreateStreakController> {
                   }
                 },
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12.r),
@@ -152,15 +161,78 @@ class CreateStreakView extends GetView<CreateStreakController> {
                 ),
               ),
               SizedBox(height: 20.h),
+
+              // ── Enable Reminders Toggle ──
               Obx(() => SwitchListTile(
                     title: const Text('Enable Reminders'),
                     value: controller.isReminderEnabled.value,
-                    onChanged: (val) => controller.isReminderEnabled.value = val,
+                    onChanged: controller.onReminderToggled,
                     activeColor: AppColors.primary,
                     contentPadding: EdgeInsets.zero,
                   )),
+
+              // ── Notification Guard: show warning if global notifications are off ──
               Obx(() {
-                if (!controller.isReminderEnabled.value) return const SizedBox.shrink();
+                if (!controller.globalNotificationsEnabled.value) {
+                  return Container(
+                    margin: EdgeInsets.only(top: 8.h, bottom: 8.h),
+                    padding: EdgeInsets.all(12.w),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: Colors.orange.withOpacity(0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            color: Colors.orange, size: 20.sp),
+                        SizedBox(width: 10.w),
+                        Expanded(
+                          child: Text(
+                            'Notifications are disabled in Settings. Enable them to schedule reminders.',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8.w),
+                        TextButton(
+                          onPressed: () {
+                            Get.back(); // Close create/edit screen
+                            // Switch to Settings tab (index 2)
+                            try {
+                              final mainCtrl = Get.find<MainController>();
+                              mainCtrl.changePage(2);
+                            } catch (_) {}
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.orange,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8.w, vertical: 4.h),
+                          ),
+                          child: Text(
+                            'Settings',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+
+              // ── Reminder Options (only if enabled) ──
+              Obx(() {
+                if (!controller.isReminderEnabled.value) {
+                  return const SizedBox.shrink();
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -172,17 +244,22 @@ class CreateStreakView extends GetView<CreateStreakController> {
                       items: controller.reminderOptions.map((int val) {
                         return DropdownMenuItem<int>(
                           value: val,
-                          child: Text(val == 0 ? 'At time of event' : '$val minutes before'),
+                          child: Text(val == 0
+                              ? 'At time of event'
+                              : '$val minutes before'),
                         );
                       }).toList(),
                       onChanged: (val) {
-                        if (val != null) controller.reminderMinutesBefore.value = val;
+                        if (val != null) {
+                          controller.reminderMinutesBefore.value = val;
+                        }
                       },
                       dropdownColor: AppColors.surface,
                     ),
                   ],
                 );
               }),
+
               SizedBox(height: 20.h),
               Obx(() => SwitchListTile(
                     title: const Text(AppStrings.strictMode),
@@ -198,10 +275,12 @@ class CreateStreakView extends GetView<CreateStreakController> {
               SizedBox(height: 40.h),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: controller.saveStreak,
-                  child: const Text('Save Streak'),
-                ),
+                child: Obx(() => ElevatedButton(
+                      onPressed: controller.saveStreak,
+                      child: Text(controller.isEditMode.value
+                          ? 'Update Streak'
+                          : 'Save Streak'),
+                    )),
               ),
             ],
           ),

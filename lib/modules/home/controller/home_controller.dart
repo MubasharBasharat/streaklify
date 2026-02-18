@@ -114,8 +114,11 @@ class HomeController extends GetxController {
     }
   }
 
-  void navigateToCreateStreak() async {
-    final result = await Get.toNamed(AppRoutes.createStreak);
+  void navigateToEditStreak(StreakModel streak) async {
+    final result = await Get.toNamed(
+      AppRoutes.createStreak,
+      arguments: streak,
+    );
     if (result == true) {
       _loadStreaks();
     }
